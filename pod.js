@@ -3,7 +3,9 @@ var podX,
     nextCheckpointX,
     nextCheckpointY,
     nextCheckpointDistance,
-    nextCheckpointAngle;
+    nextCheckpointAngle,
+    checkpoints = [],
+    nextCheckpointIndex = 0;
 
 
 function registerPodPosition(x, y)
@@ -18,6 +20,22 @@ function registerNextCheckpoint(x, y, distance, angle)
     nextCheckpointY = y;
     nextCheckpointDistance = distance;
     nextCheckpointAngle = angle;
+
+    // Select the checkpoint index
+    var checkpoint
+    for (var total = checkpoints.length, index = 0; index < total; index++) {
+        checkpoint = checkpoints[index];
+        if (checkpoint.x === x && checkpoint.y === y) {
+            nextCheckpointIndex = index;
+            //printErr('Next checkpoint index: ' + nextCheckpointIndex)
+            return;
+        }
+    }
+    checkpoint = {
+        x: x,
+        y: y
+    };
+    checkpoints.push(checkpoint);
 }
 
 function getOppositePoint()
@@ -34,16 +52,56 @@ function goToPointSlowly(x, y)
 {
     var speed = 0;
 
-    speed = (nextCheckpointDistance / 5000) * 100;
+    speed = (nextCheckpointDistance / 1000) * 100;
     speed = Math.abs(Math.ceil(speed));
-    if (speed < 50) {
-        speed = 50;
+    if (speed > 100) {
+        speed = 100;
+    }
+
+    // Decrease speed near the checkpoint
+    if (nextCheckpointDistance < 2000) {
+        speed -= Math.abs((1 - nextCheckpointDistance / 2000) * 30);
+    }
+
+    // Decrease speed if the angle is too high
+    if (Math.abs(nextCheckpointAngle) > 90) {
+        speed -= Math.abs((nextCheckpointAngle / 180) * 60);
+    }
+
+    // Speed limits
+    speed = Math.ceil(speed);
+    if (speed < 10) {
+        speed = 10;
     }
     if (speed > 100) {
         speed = 100;
     }
 
+    // Go go go!
     goToPoint(x, y, speed);
+}
+
+var boostMax = 1;
+var boostCount = 0;
+function goToPointSlowlyWithBoost(x, y)
+{
+    if (Math.abs(nextCheckpointAngle) > 1) {
+        goToPointSlowly(x, y);
+        return;
+    }
+
+    if (nextCheckpointDistance < 6000) {
+        goToPointSlowly(x, y);
+        return;
+    }
+
+    if (boostCount >= boostMax) {
+        goToPointSlowly(x, y);
+        return;
+    }
+
+    goToPoint(x, y, 'BOOST');
+    boostCount++;
 }
 
 function debugNextCheckpointDistance()
@@ -74,5 +132,5 @@ while (true) {
 
     debugNextCheckpointDistance();
     debugNextCheckpointAngle();
-    goToPointSlowly(nextCheckpointX, nextCheckpointY);
+    goToPointSlowlyWithBoost(nextCheckpointX, nextCheckpointY);
 }
