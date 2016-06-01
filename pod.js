@@ -1,17 +1,22 @@
-var podX,
-    podY,
+var pod,
     nextCheckpointX,
     nextCheckpointY,
     nextCheckpointDistance,
     nextCheckpointAngle,
     checkpoints = [],
-    nextCheckpointIndex = 0;
+    nextCheckpointIndex = 0,
+    boostMax = 1,
+    boostCount = 0,
+    podRadius = 400,
+    opponents = [];
 
 
 function registerPodPosition(x, y)
 {
-    podX = x;
-    podY = y;
+    pod = {
+        x : x,
+        y : y
+    };
 }
 
 function registerNextCheckpoint(x, y, distance, angle)
@@ -21,7 +26,10 @@ function registerNextCheckpoint(x, y, distance, angle)
     nextCheckpointDistance = distance;
     nextCheckpointAngle = angle;
 
-    // Select the checkpoint index
+    printErr('Next checkpoint distance: ' + nextCheckpointDistance);
+    printErr('Next checkpoint angle: ' + nextCheckpointAngle);
+
+    // Select the next checkpoint index
     var checkpoint
     for (var total = checkpoints.length, index = 0; index < total; index++) {
         checkpoint = checkpoints[index];
@@ -38,14 +46,89 @@ function registerNextCheckpoint(x, y, distance, angle)
     checkpoints.push(checkpoint);
 }
 
-function getOppositePoint()
+function resetOpponents()
 {
+    opponents = [];
+}
+
+function registerOpponent(x, y)
+{
+    var opponent = {
+        x: x,
+        y: y
+    };
+
+    opponents.push(opponent);
+}
+
+function isNearOpponent()
+{
+    for (var total = opponents.length, index = 0; index < total; index++) {
+        var opponent = opponents[index];
+
+        // Get distance between the pod and the opponent
+        // Pythagore
+        var diffX = Math.abs(opponent.x - pod.x);
+        var diffY = Math.abs(opponent.y - pod.y);
+        var distance = Math.sqrt(Math.pow(diffX, 2) + Math.pow(diffY, 2));
+
+        //printErr('Opponent (' + opponent.x + ', ' + opponent.y+ ') Pod (' + pod.x + ', ' + pod.y + ')');
+        printErr('Opponent ' + index + ' distance: ' + distance);
+        if (distance < podRadius * 2 + 400) {
+            return opponent;
+        }
+    }
+
+    return false;
 }
 
 function goToPoint(x, y, speed)
 {
+    x = parseInt(x);
+    y = parseInt(y);
+
     printErr('speed: ' + speed);
     print(x + ' ' + y + ' ' + speed);
+}
+
+function findMomentToBoost(x, y)
+{
+    // Get distance between the pod and the destination
+    // Pythagore
+    var diffX = Math.abs(x - pod.x);
+    var diffY = Math.abs(y - pod.y);
+    var distance = Math.sqrt(Math.pow(diffX, 2) + Math.pow(diffY, 2));
+
+    // Get the angle
+    var angle = Math.atan2(y - pod.y, x - pod.x) * 180 / Math.PI;
+
+    if (Math.abs(angle) > 1) {
+        return false;
+    }
+
+    if (distance < 2000) {
+        return false;
+    }
+
+    if (boostCount >= boostMax) {
+        return false;
+    }
+
+    goToPoint(x, y, 'BOOST');
+    printErr('Boosted');
+    boostCount++;
+
+    return true;
+}
+
+function goToPointWithBoost(x, y)
+{
+    var boosted = findMomentToBoost(x, y);
+    if (boosted) {
+        return;
+    }
+
+    goToPoint(x, y, 100);
 }
 
 function goToPointSlowly(x, y)
@@ -59,14 +142,15 @@ function goToPointSlowly(x, y)
     }
 
     // Decrease speed near the checkpoint
-    if (nextCheckpointDistance < 2000) {
-        speed -= Math.abs((1 - nextCheckpointDistance / 2000) * 30);
+    if (nextCheckpointDistance < 3000) {
+        speed -= Math.abs((1 - nextCheckpointDistance / 2000) * 50);
     }
 
     // Decrease speed if the angle is too high
-    if (Math.abs(nextCheckpointAngle) > 90) {
-        speed -= Math.abs((nextCheckpointAngle / 180) * 60);
+    if (Math.abs(nextCheckpointAngle) > 20) {
+        speed -= Math.abs((nextCheckpointAngle / 180) * 50);
     }
+
 
     // Speed limits
     speed = Math.ceil(speed);
@@ -81,56 +165,45 @@ function goToPointSlowly(x, y)
     goToPoint(x, y, speed);
 }
 
-var boostMax = 1;
-var boostCount = 0;
 function goToPointSlowlyWithBoost(x, y)
 {
-    if (Math.abs(nextCheckpointAngle) > 1) {
-        goToPointSlowly(x, y);
+    var boosted = findMomentToBoost(x, y);
+    if (boosted) {
         return;
     }
 
-    if (nextCheckpointDistance < 6000) {
-        goToPointSlowly(x, y);
-        return;
-    }
-
-    if (boostCount >= boostMax) {
-        goToPointSlowly(x, y);
-        return;
-    }
-
-    goToPoint(x, y, 'BOOST');
-    boostCount++;
+    goToPointSlowly(x, y);
 }
 
-function debugNextCheckpointDistance()
+function ejectOpponent()
 {
-    printErr('Next checkpoint distance: ' + nextCheckpointDistance);
+    var opponent = isNearOpponent();
+    if (!opponent) {
+        return false;
+    }
+
+    goToPointSlowlyWithBoost(opponent.x, opponent.y);
+    return true;
 }
-function debugNextCheckpointAngle()
-{
-    printErr('Next checkpoint angle: ' + nextCheckpointAngle);
-}
+
 
 // GAME LOOP
 while (true) {
     var inputs = readline().split(' ');
-    var x = parseInt(inputs[0]);
-    var y = parseInt(inputs[1]);
-    var nextCheckpointX = parseInt(inputs[2]); // x position of the next check point
-    var nextCheckpointY = parseInt(inputs[3]); // y position of the next check point
-    var nextCheckpointDist = parseInt(inputs[4]); // distance to the next checkpoint
-    var nextCheckpointAngle = parseInt(inputs[5]); // angle between your pod orientation and the direction of the next checkpoint
+    registerPodPosition(parseInt(inputs[0]), parseInt(inputs[1]));
+    registerNextCheckpoint(parseInt(inputs[2]), parseInt(inputs[3]), parseInt(inputs[4]), parseInt(inputs[5]));
+
     var inputs = readline().split(' ');
-    var opponentX = parseInt(inputs[0]);
-    var opponentY = parseInt(inputs[1]);
+    resetOpponents();
+    registerOpponent(inputs[0], inputs[1]);
 
 
-    registerPodPosition(x, y);
-    registerNextCheckpoint(nextCheckpointX, nextCheckpointY, nextCheckpointDist, nextCheckpointAngle);
-
-    debugNextCheckpointDistance();
-    debugNextCheckpointAngle();
-    goToPointSlowlyWithBoost(nextCheckpointX, nextCheckpointY);
+    /*
+    var ejected = ejectOpponent();
+    if (ejected) {
+        continue;
+    }
+    //*/
+    goToPointWithBoost(nextCheckpointX, nextCheckpointY);
+    //goToPointSlowlyWithBoost(nextCheckpointX, nextCheckpointY);
 }
